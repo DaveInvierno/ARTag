@@ -26,6 +26,7 @@ import android.view.View.OnTouchListener;
 import android.widget.Toast;
 
 import com.gamejam.artag.R;
+import com.gamejam.artag.audio.AudioPlayer;
 import com.googlecode.javacpp.Loader;
 import com.googlecode.javacv.cpp.opencv_core.CvMemStorage;
 import com.googlecode.javacv.cpp.opencv_core.CvRect;
@@ -46,10 +47,14 @@ public class FaceView extends View implements Camera.PreviewCallback, OnTouchLis
     private Bitmap mGun;
     private Bitmap mGunFire;
     private boolean isFiring = false;
+    private AudioPlayer mAudioPlayer = new AudioPlayer();
+    private Activity mActivity;
     
     public FaceView(Activity context) throws IOException {
         super(context);
 
+        mActivity = context;
+        
         // Load the classifier file from Java resources.
         File classifierFile = Loader.extractResource(getClass(),
             "/res/raw/haarcascade_frontalface_alt.xml",
@@ -113,9 +118,9 @@ public class FaceView extends View implements Camera.PreviewCallback, OnTouchLis
     protected void onDraw(Canvas canvas) {
         Paint paint = new Paint();
         paint.setColor(Color.RED);
-        paint.setTextSize(20);
+        paint.setTextSize(24);
 
-        String s = "FacePreview - This side up.";
+        String s = "TURN PHONE WITH THIS SIDE UP";
         float textWidth = paint.measureText(s);
         canvas.drawText(s, (getWidth()-textWidth)/2, 20, paint);
 
@@ -162,6 +167,7 @@ public class FaceView extends View implements Camera.PreviewCallback, OnTouchLis
         if(isFiring) {
         	isFiring = false;
         	canvas.drawBitmap(mGunFire, (canvas.getWidth() / 2) + mGunFire.getWidth(), canvas.getHeight() - mGunFire.getHeight(), paint);
+        	mAudioPlayer.play(mActivity);
         } else {
         	canvas.drawBitmap(mGun, (canvas.getWidth() / 2) + mGun.getWidth(), canvas.getHeight() - mGun.getHeight(), paint);
         }
