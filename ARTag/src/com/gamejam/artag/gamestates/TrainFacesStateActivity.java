@@ -1,5 +1,6 @@
 package com.gamejam.artag.gamestates;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -8,6 +9,9 @@ import java.util.UUID;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
@@ -24,62 +28,35 @@ import android.view.WindowManager;
 import android.widget.Button;
 
 import com.gamejam.artag.R;
+import com.gamejam.artag.imageproc.FaceRecognition;
 
 public class TrainFacesStateActivity extends Activity {
 	
-	private static final String TAG = "TrainFacesActivity";
+	private static final String TAG = "TrainFacesStateActivity";
 	private boolean isTakePictureBtnClicked = false;
+	private String mTrainedFacesTxt = "";
+	private String mPlayerName;
 	
 	private Button mTakePictureButton;
-	
+	private Button mTrainPictureButton;
 	private Camera mCamera;
 	private SurfaceView mSurfaceView;
+	private View mProgressContainer;
+	
+	private FaceRecognition mFaceRecognition;
 	
 	private Camera.PreviewCallback mPreviewCallback = new Camera.PreviewCallback() {
 		
 		@Override
 		public void onPreviewFrame(byte[] data, Camera camera) {
 			try {
-	            saveImage(data, camera);
+				if(isTakePictureBtnClicked)
+					saveImage(data, camera);
+				
 	            camera.addCallbackBuffer(data);
 	        } catch (RuntimeException e) {
 	            // The camera has probably just been released, ignore.
 	        }
-		}
-	};
-	
-	private Camera.PictureCallback mJpegCallback = new Camera.PictureCallback() {
-		
-		public void onPictureTaken(byte[] data, Camera camera) {
-			// Create a filename
-			String filename = UUID.randomUUID().toString() + ".jpg";
-			// Save the jpeg data to disk
-			FileOutputStream os = null;
-			boolean success = true;
-			//File sdCard = Environment.getExternalStorageDirectory();
-			File dir = new File ("/sdcard/artag/data");
-			dir.mkdirs();
-			File file = new File(dir, filename);
-			
-			try {
-				//os = openFileOutput(filename, Context.MODE_PRIVATE);
-				os = new FileOutputStream(file);
-				os.write(data);
-			} catch (Exception e) {
-				Log.e(TAG, "Error writing to file " + filename, e);
-				success = false;
-			} finally {
-			
-				try {
-					if (os != null)
-						os.close();
-				} catch (Exception e) {
-					Log.e(TAG, "Error closing file " + filename, e);
-					success = false;
-				}
-			}
-			mCamera.stopPreview();
-			mCamera.startPreview();
 		}
 	};
     
@@ -87,23 +64,39 @@ public class TrainFacesStateActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
     	// Hide the window title.
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        super.onCreate(savedInstanceState);
-
+        // Use full screen
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
+        super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_train_faces_state);
         
-        mTakePictureButton = (Button)findViewById(R.id.crime_camera_takePictureButton);
+        mFaceRecognition = FaceRecognition.getInstance();
+        
+        mProgressContainer = findViewById(R.id.camera_progressContainer);
+		mProgressContainer.setVisibility(View.INVISIBLE);
+        
+        mTakePictureButton = (Button) findViewById(R.id.camera_takePictureButton);
 		mTakePictureButton.setOnClickListener(new View.OnClickListener() {
 			
 			@Override
 			public void onClick(View v) {
 				//getActivity().finish();
 				if (mCamera != null) {
-					//mCamera.takePicture(null, null, mJpegCallback);
+					mPlayerName = "1 Dave ";
 					isTakePictureBtnClicked = true;
 				}
+			}
+		});
+		
+		mTrainPictureButton = (Button) findViewById(R.id.camera_trainPictureButton);
+		mTrainPictureButton.setOnClickListener(new View.OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				mPlayerName = "2 Ernest ";
+				isTakePictureBtnClicked = true;
+				
 			}
 		});
 		
@@ -217,53 +210,38 @@ public class TrainFacesStateActivity extends Activity {
         }
         return optimalSize;
     }
-	
-	/** A simple algorithm to get the largest size available. For a more
-	* robust version, see CameraPreview.java in the ApiDemos
-	* sample app from Android. */
-	private Size getBestSupportedSize(List<Size> sizes, int width, int height) {
-		Size bestSize = sizes.get(0);
-		int largestArea = bestSize.width * bestSize.height;
-		
-		for (Size s : sizes) {
-			int area = s.width * s.height;
-			
-			if (area > largestArea) {
-				bestSize = s;
-				largestArea = area;
-			}
-		}
-		
-		return bestSize;
-	}
 
 	private void saveImage(byte[] data, Camera camera) {
-		if(isTakePictureBtnClicked == false) return;
-		
+		Log.d(TAG, "Saving Image...");
 		isTakePictureBtnClicked = false;
+		mProgressContainer.setVisibility(View.VISIBLE);
 		mTakePictureButton.setEnabled(false);
-		mCamera.stopPreview();
+		
+		byte[] resized = resizeImage(data, camera);
 		
 		// Create a filename
 		String filename = UUID.randomUUID().toString() + ".jpg";
+		String imgFiledDir = Environment.getExternalStorageDirectory() + "/artag/data/";
 		// Save the jpeg data to disk
 		FileOutputStream os = null;
-		//File sdCard = Environment.getExternalStorageDirectory();
-		File dir = new File (Environment.getExternalStorageDirectory() + "/artag/data");
+		File dir = new File (imgFiledDir);
 		dir.mkdirs();
 		File file = new File(dir, filename);
 
 		try {
 			// Convert preview data to YUV
-			Camera.Parameters parameters = camera.getParameters(); 
+			/*Camera.Parameters parameters = camera.getParameters(); 
 	        Size size = parameters.getPreviewSize(); 
-			YuvImage image = new YuvImage(data, parameters.getPreviewFormat(), 
-	                size.width, size.height, null);
+			YuvImage image = new YuvImage(resized, parameters.getPreviewFormat(), 
+	                size.width, size.height, null);*/
 			//os = openFileOutput(filename, Context.MODE_PRIVATE);
 			os = new FileOutputStream(file);
-			image.compressToJpeg( 
-	                new Rect(0, 0, image.getWidth(), image.getHeight()), 90, 
-	                os); 
+			os.write(resized);
+			/*image.compressToJpeg( 
+	                new Rect(0, 0, image.getWidth(), image.getHeight()), 90, os);*/
+			Log.d(TAG, "Image saved to " + dir.getAbsolutePath());
+			
+			mTrainedFacesTxt += mPlayerName + file.getPath() + System.getProperty("line.separator");
 		} catch (Exception e) {
 			Log.e(TAG, "Error writing to file " + filename, e);
 		} finally {
@@ -277,7 +255,61 @@ public class TrainFacesStateActivity extends Activity {
 		}
 		
 		mTakePictureButton.setEnabled(true);
-		mCamera.startPreview();
+		mProgressContainer.setVisibility(View.INVISIBLE);
+	}
+	
+	private byte[] resizeImage(byte[] input, Camera camera) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		Camera.Parameters parameters = camera.getParameters(); 
+        Size size = parameters.getPreviewSize(); 
+		YuvImage yuvImage = new YuvImage(input, parameters.getPreviewFormat(), 
+                size.width, size.height, null);
+		yuvImage.compressToJpeg(new Rect(0, 0, yuvImage.getWidth(), yuvImage.getHeight()), 90, out);
+		byte[] imageBytes = out.toByteArray();
+		Bitmap original = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+	    //Bitmap original = BitmapFactory.decodeByteArray(input , 0, input.length);
+	    Bitmap resized = Bitmap.createScaledBitmap(original, 72, 48, true);
+	         
+	    ByteArrayOutputStream blob = new ByteArrayOutputStream();
+	    resized.compress(Bitmap.CompressFormat.JPEG, 100, blob);
+	 
+	    return blob.toByteArray();
+	}
+	
+	@Override
+	public void onBackPressed() {
+		// Create a filename
+		String filename = "trainedfaces.txt";
+		String txtFiledDir = Environment.getExternalStorageDirectory() + "/artag/data/";
+		// Save the jpeg data to disk
+		FileOutputStream os = null;
+		File dir= new File (txtFiledDir);
+		dir.mkdirs();
+		File file = new File(dir, filename);
+		
+		try { 
+			os = new FileOutputStream(file, true);
+			//os = openFileOutput(filename, Context.MODE_PRIVATE);
+			os.write(mTrainedFacesTxt.getBytes());
+		} catch (Exception e) {
+			Log.e(TAG, "Error writing to file " + filename, e);
+		} finally {
+			try {
+				if (os != null)
+					os.flush();
+					os.close();
+			} catch (Exception e) {
+				Log.e(TAG, "Error closing file " + filename, e);
+			}
+		}
+		
+		FaceRecognition fr = FaceRecognition.getInstance();
+		fr.learn("trainedfaces.txt");
+		
+		Intent i = new Intent(TrainFacesStateActivity.this, InGameStateActivity.class);
+		startActivity(i);
+		
+		super.onBackPressed();
 	}
 }
 

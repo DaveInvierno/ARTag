@@ -34,17 +34,63 @@
 
 package com.gamejam.artag.imageproc;
 
-import com.googlecode.javacpp.FloatPointer;
-import com.googlecode.javacpp.Pointer;
+import static com.googlecode.javacv.cpp.opencv_core.CV_32FC1;
+import static com.googlecode.javacv.cpp.opencv_core.CV_32SC1;
+import static com.googlecode.javacv.cpp.opencv_core.CV_L1;
+import static com.googlecode.javacv.cpp.opencv_core.CV_STORAGE_READ;
+import static com.googlecode.javacv.cpp.opencv_core.CV_STORAGE_WRITE;
+import static com.googlecode.javacv.cpp.opencv_core.CV_TERMCRIT_ITER;
+import static com.googlecode.javacv.cpp.opencv_core.IPL_DEPTH_32F;
+import static com.googlecode.javacv.cpp.opencv_core.IPL_DEPTH_8U;
+import static com.googlecode.javacv.cpp.opencv_core.cvConvertScale;
+import static com.googlecode.javacv.cpp.opencv_core.cvCopy;
+import static com.googlecode.javacv.cpp.opencv_core.cvCreateImage;
+import static com.googlecode.javacv.cpp.opencv_core.cvCreateMat;
+import static com.googlecode.javacv.cpp.opencv_core.cvGetTickCount;
+import static com.googlecode.javacv.cpp.opencv_core.cvGetTickFrequency;
+import static com.googlecode.javacv.cpp.opencv_core.cvMinMaxLoc;
+import static com.googlecode.javacv.cpp.opencv_core.cvNormalize;
+import static com.googlecode.javacv.cpp.opencv_core.cvOpenFileStorage;
+import static com.googlecode.javacv.cpp.opencv_core.cvReadByName;
+import static com.googlecode.javacv.cpp.opencv_core.cvReadIntByName;
+import static com.googlecode.javacv.cpp.opencv_core.cvReadStringByName;
+import static com.googlecode.javacv.cpp.opencv_core.cvRect;
+import static com.googlecode.javacv.cpp.opencv_core.cvReleaseFileStorage;
+import static com.googlecode.javacv.cpp.opencv_core.cvReleaseImage;
+import static com.googlecode.javacv.cpp.opencv_core.cvResetImageROI;
+import static com.googlecode.javacv.cpp.opencv_core.cvSetImageROI;
+import static com.googlecode.javacv.cpp.opencv_core.cvSize;
+import static com.googlecode.javacv.cpp.opencv_core.cvTermCriteria;
+import static com.googlecode.javacv.cpp.opencv_core.cvWrite;
+import static com.googlecode.javacv.cpp.opencv_core.cvWriteInt;
+import static com.googlecode.javacv.cpp.opencv_core.cvWriteString;
+import static com.googlecode.javacv.cpp.opencv_highgui.CV_LOAD_IMAGE_GRAYSCALE;
+import static com.googlecode.javacv.cpp.opencv_highgui.cvLoadImage;
+import static com.googlecode.javacv.cpp.opencv_highgui.cvSaveImage;
+import static com.googlecode.javacv.cpp.opencv_legacy.CV_EIGOBJ_NO_CALLBACK;
+import static com.googlecode.javacv.cpp.opencv_legacy.cvCalcEigenObjects;
+import static com.googlecode.javacv.cpp.opencv_legacy.cvEigenDecomposite;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
-import static com.googlecode.javacv.cpp.opencv_core.*;
-import static com.googlecode.javacv.cpp.opencv_highgui.*;
-import static com.googlecode.javacv.cpp.opencv_legacy.*;
+
+import android.os.Environment;
+import android.util.Log;
+
+import com.googlecode.javacpp.FloatPointer;
+import com.googlecode.javacpp.Pointer;
+import com.googlecode.javacv.cpp.opencv_core.CvFileStorage;
+import com.googlecode.javacv.cpp.opencv_core.CvMat;
+import com.googlecode.javacv.cpp.opencv_core.CvPoint;
+import com.googlecode.javacv.cpp.opencv_core.CvRect;
+import com.googlecode.javacv.cpp.opencv_core.CvSize;
+import com.googlecode.javacv.cpp.opencv_core.CvTermCriteria;
+import com.googlecode.javacv.cpp.opencv_core.IplImage;
 
 /** Recognizes faces.
  *
@@ -52,6 +98,8 @@ import static com.googlecode.javacv.cpp.opencv_legacy.*;
  */
 public class FaceRecognition {
 
+	private final static String TAG = "FaceRecognition";
+	private static FaceRecognition mFaceRecognitionInstance;
   /** the logger */
   private static final Logger LOGGER = Logger.getLogger(FaceRecognition.class.getName());
   /** the number of training faces */
@@ -78,9 +126,16 @@ public class FaceRecognition {
   CvMat projectedTrainFaceMat;
 
   /** Constructs a new FaceRecognition instance. */
-  public FaceRecognition() {
+  private FaceRecognition() {
   }
 
+  public static FaceRecognition getInstance() {
+	  if(mFaceRecognitionInstance == null)
+		  mFaceRecognitionInstance = new FaceRecognition();
+	  
+	  return mFaceRecognitionInstance;
+  }
+  
   /** Trains from the data in the given training text index file, and store the trained data into the file 'data/facedata.xml'.
    *
    * @param trainingFileName the given training text index file
@@ -89,11 +144,11 @@ public class FaceRecognition {
     int i;
 
     // load training data
-    LOGGER.info("===========================================");
-    LOGGER.info("Loading the training images in " + trainingFileName);
+    Log.d(TAG, "===========================================");
+    Log.d(TAG, "Loading the training images in " + trainingFileName);
     trainingFaceImgArr = loadFaceImgArray(trainingFileName);
     nTrainFaces = trainingFaceImgArr.length;
-    LOGGER.info("Got " + nTrainFaces + " training images");
+    Log.d(TAG, "Got " + nTrainFaces + " training images");
     if (nTrainFaces < 3) {
       LOGGER.severe("Need 3 or more training faces\n"
               + "Input file contains only " + nTrainFaces);
@@ -103,7 +158,7 @@ public class FaceRecognition {
     // do Principal Component Analysis on the training faces
     doPCA();
 
-    LOGGER.info("projecting the training images onto the PCA subspace");
+    Log.d(TAG, "projecting the training images onto the PCA subspace");
     // project the training images onto the PCA subspace
     projectedTrainFaceMat = cvCreateMat(
             nTrainFaces, // rows
@@ -117,9 +172,9 @@ public class FaceRecognition {
       }
     }
 
-    LOGGER.info("created projectedTrainFaceMat with " + nTrainFaces + " (nTrainFaces) rows and " + nEigens + " (nEigens) columns");
+    Log.d(TAG, "created projectedTrainFaceMat with " + nTrainFaces + " (nTrainFaces) rows and " + nEigens + " (nEigens) columns");
     if (nTrainFaces < 5) {
-      LOGGER.info("projectedTrainFaceMat contents:\n" + oneChannelCvMatToString(projectedTrainFaceMat));
+      Log.d(TAG, "projectedTrainFaceMat contents:\n" + oneChannelCvMatToString(projectedTrainFaceMat));
     }
 
     final FloatPointer floatPointer = new FloatPointer(nEigens);
@@ -134,14 +189,14 @@ public class FaceRecognition {
               floatPointer); // coeffs (FloatPointer)
 
       if (nTrainFaces < 5) {
-        LOGGER.info("floatPointer: " + floatPointerToString(floatPointer));
+        Log.d(TAG, "floatPointer: " + floatPointerToString(floatPointer));
       }
       for (int j1 = 0; j1 < nEigens; j1++) {
         projectedTrainFaceMat.put(i, j1, floatPointer.get(j1));
       }
     }
     if (nTrainFaces < 5) {
-      LOGGER.info("projectedTrainFaceMat after cvEigenDecomposite:\n" + projectedTrainFaceMat);
+      Log.d(TAG, "projectedTrainFaceMat after cvEigenDecomposite:\n" + projectedTrainFaceMat);
     }
 
     // store the recognition data as an xml file
@@ -156,8 +211,8 @@ public class FaceRecognition {
    * @param szFileTest the index file of test images
    */
   public void recognizeFileList(final String szFileTest) {
-    LOGGER.info("===========================================");
-    LOGGER.info("recognizing faces indexed from " + szFileTest);
+    Log.d(TAG, "===========================================");
+    Log.d(TAG, "recognizing faces indexed from " + szFileTest);
     int i = 0;
     int nTestFaces = 0;         // the number of test images
     CvMat trainPersonNumMat;  // the person numbers during training
@@ -173,7 +228,7 @@ public class FaceRecognition {
     testFaceImgArr = loadFaceImgArray(szFileTest);
     nTestFaces = testFaceImgArr.length;
 
-    LOGGER.info(nTestFaces + " test faces loaded");
+    Log.d(TAG, nTestFaces + " test faces loaded");
 
     // load the saved training data
     trainPersonNumMat = loadTrainingData();
@@ -200,7 +255,7 @@ public class FaceRecognition {
               pAvgTrainImg, // avg
               projectedTestFace);  // coeffs
 
-      //LOGGER.info("projectedTestFace\n" + floatArrayToString(projectedTestFace));
+      //Log.d(TAG, "projectedTestFace\n" + floatArrayToString(projectedTestFace));
 
       final FloatPointer pConfidence = new FloatPointer(confidence);
       iNearest = findNearestNeighbor(projectedTestFace, new FloatPointer(pConfidence));
@@ -215,15 +270,83 @@ public class FaceRecognition {
         answer = "WRONG!";
         nWrong++;
       }
-      LOGGER.info("nearest = " + nearest + ", Truth = " + truth + " (" + answer + "). Confidence = " + confidence);
+      Log.d(TAG, "nearest = " + nearest + ", Truth = " + truth + " (" + answer + "). Confidence = " + confidence);
     }
     tallyFaceRecognizeTime = (double) cvGetTickCount() - timeFaceRecognizeStart;
     if (nCorrect + nWrong > 0) {
-      LOGGER.info("TOTAL ACCURACY: " + (nCorrect * 100 / (nCorrect + nWrong)) + "% out of " + (nCorrect + nWrong) + " tests.");
-      LOGGER.info("TOTAL TIME: " + (tallyFaceRecognizeTime / (cvGetTickFrequency() * 1000.0 * (nCorrect + nWrong))) + " ms average.");
+      Log.d(TAG, "TOTAL ACCURACY: " + (nCorrect * 100 / (nCorrect + nWrong)) + "% out of " + (nCorrect + nWrong) + " tests.");
+      Log.d(TAG, "TOTAL TIME: " + (tallyFaceRecognizeTime / (cvGetTickFrequency() * 1000.0 * (nCorrect + nWrong))) + " ms average.");
     }
   }
 
+  /** Recognizes the face in each of the test images given, and compares the results with the truth.
+  *
+  * @param szFileTest the index file of test images
+  */
+ public float recognizeFace(IplImage face) {
+   Log.d(TAG, "===========================================");
+   int i = 0;
+   int nTestFaces = 0;         // the number of test images
+   CvMat trainPersonNumMat;  // the person numbers during training
+   float[] projectedTestFace;
+   String answer;
+   int nCorrect = 0;
+   int nWrong = 0;
+   double timeFaceRecognizeStart;
+   double tallyFaceRecognizeTime;
+   float confidence = 0.0f;
+
+   // load the saved training data
+   trainPersonNumMat = loadTrainingData();
+   if (trainPersonNumMat == null) {
+     return 0;
+   }
+   
+   // project the test images onto the PCA subspace
+   projectedTestFace = new float[nEigens];
+   timeFaceRecognizeStart = (double) cvGetTickCount();        // Record the timing.
+
+   	 int iNearest;
+     int nearest;
+     int truth;
+
+     // project the test image onto the PCA subspace
+     cvEigenDecomposite(
+             face, // obj
+             nEigens, // nEigObjs
+             eigenVectArr, // eigInput (Pointer)
+             0, // ioFlags
+             null, // userData
+             pAvgTrainImg, // avg
+             projectedTestFace);  // coeffs
+
+     //Log.d(TAG, "projectedTestFace\n" + floatArrayToString(projectedTestFace));
+
+     final FloatPointer pConfidence = new FloatPointer(confidence);
+     iNearest = findNearestNeighbor(projectedTestFace, new FloatPointer(pConfidence));
+     confidence = pConfidence.get();
+     truth = personNumTruthMat.data_i().get(i);
+     nearest = trainPersonNumMat.data_i().get(iNearest);
+
+     if (nearest == truth) {
+       answer = "Correct";
+       nCorrect++;
+     } else {
+       answer = "WRONG!";
+       nWrong++;
+     }
+     Log.d(TAG, "nearest = " + nearest + ", Truth = " + truth + " (" + answer + "). Confidence = " + confidence);
+   
+   tallyFaceRecognizeTime = (double) cvGetTickCount() - timeFaceRecognizeStart;
+   if (nCorrect + nWrong > 0) {
+	   float avg = (nCorrect / (nCorrect + nWrong)) * 100;
+	   Log.d(TAG, "TOTAL ACCURACY: " + avg + "% out of " + (nCorrect + nWrong) + " tests.");
+	   Log.d(TAG, "TOTAL TIME: " + (tallyFaceRecognizeTime / (cvGetTickFrequency() * 1000.0 * (nCorrect + nWrong))) + " ms average.");
+	   return avg;
+   } else
+	   return 0;
+ }
+  
   /** Reads the names & image filenames of people from a text file, and loads all those images listed.
    *
    * @param filename the training file name
@@ -236,9 +359,14 @@ public class FaceRecognition {
     int iFace = 0;
     int nFaces = 0;
     int i;
+    
+	String txtFiledDir = Environment.getExternalStorageDirectory() + "/artag/data/";
+	File dir= new File (txtFiledDir);
+	File file = new File(dir, filename);
+	
     try {
       // open the input file
-      imgListFile = new BufferedReader(new FileReader(filename));
+      imgListFile = new BufferedReader(new FileReader(file));
 
       // count the number of faces
       while (true) {
@@ -248,8 +376,8 @@ public class FaceRecognition {
         }
         nFaces++;
       }
-      LOGGER.info("nFaces: " + nFaces);
-      imgListFile = new BufferedReader(new FileReader(filename));
+      Log.d(TAG, "nFaces: " + nFaces);
+      imgListFile = new BufferedReader(new FileReader(file));
 
       // allocate the face-image array and person number matrix
       faceImgArr = new IplImage[nFaces];
@@ -282,14 +410,14 @@ public class FaceRecognition {
         personName = tokens[1];
         imgFilename = tokens[2];
         sPersonName = personName;
-        LOGGER.info("Got " + iFace + " " + personNumber + " " + personName + " " + imgFilename);
+        Log.d(TAG, "Got " + iFace + " " + personNumber + " " + personName + " " + imgFilename);
 
         // Check if a new person is being loaded.
         if (personNumber > nPersons) {
           // Allocate memory for the extra person (or possibly multiple), using this new person's name.
           personNames.add(sPersonName);
           nPersons = personNumber;
-          LOGGER.info("Got new person " + sPersonName + " -> nPersons = " + nPersons + " [" + personNames.size() + "]");
+          Log.d(TAG, "Got new person " + sPersonName + " -> nPersons = " + nPersons + " [" + personNames.size() + "]");
         }
 
         // Keep the data
@@ -314,7 +442,7 @@ public class FaceRecognition {
       throw new RuntimeException(ex);
     }
 
-    LOGGER.info("Data loaded from '" + filename + "': (" + nFaces + " images of " + nPersons + " people).");
+    Log.d(TAG, "Data loaded from '" + filename + "': (" + nFaces + " images of " + nPersons + " people).");
     final StringBuilder stringBuilder = new StringBuilder();
     stringBuilder.append("People: ");
     if (nPersons > 0) {
@@ -323,7 +451,7 @@ public class FaceRecognition {
     for (i = 1; i < nPersons && i < personNames.size(); i++) {
       stringBuilder.append(", <").append(personNames.get(i)).append(">");
     }
-    LOGGER.info(stringBuilder.toString());
+    Log.d(TAG, stringBuilder.toString());
 
     return faceImgArr;
   }
@@ -337,7 +465,7 @@ public class FaceRecognition {
     // set the number of eigenvalues to use
     nEigens = nTrainFaces - 1;
 
-    LOGGER.info("allocating images for principal component analysis, using " + nEigens + (nEigens == 1 ? " eigenvalue" : " eigenvalues"));
+    Log.d(TAG, "allocating images for principal component analysis, using " + nEigens + (nEigens == 1 ? " eigenvalue" : " eigenvalues"));
 
     // allocate the eigenvector images
     faceImgSize.width(trainingFaceImgArr[0].width());
@@ -368,7 +496,7 @@ public class FaceRecognition {
             nEigens, // max_iter
             1); // epsilon
 
-    LOGGER.info("computing average image, eigenvalues and eigenvectors");
+    Log.d(TAG, "computing average image, eigenvalues and eigenvectors");
     // compute average image, eigenvalues, and eigenvectors
     cvCalcEigenObjects(
             nTrainFaces, // nObjects
@@ -381,7 +509,7 @@ public class FaceRecognition {
             pAvgTrainImg, // avg
             eigenValMat.data_fl()); // eigVals
 
-    LOGGER.info("normalizing the eigenvectors");
+    Log.d(TAG, "normalizing the eigenvectors");
     cvNormalize(
             eigenValMat, // src (CvArr)
             eigenValMat, // dst (CvArr)
@@ -396,11 +524,11 @@ public class FaceRecognition {
     CvFileStorage fileStorage;
     int i;
 
-    LOGGER.info("writing data/facedata.xml");
+    Log.d(TAG, "writing data/facedata.xml");
 
     // create a file-storage interface
     fileStorage = cvOpenFileStorage(
-            "data/facedata.xml", // filename
+    		Environment.getExternalStorageDirectory() + "/artag/data/facedata.xml", // filename
             null, // memstorage
             CV_STORAGE_WRITE, // flags
             null); // encoding
@@ -468,14 +596,14 @@ public class FaceRecognition {
    * @return the person numbers during training, or null if not successful
    */
   private CvMat loadTrainingData() {
-    LOGGER.info("loading training data");
+    Log.d(TAG, "loading training data");
     CvMat pTrainPersonNumMat = null; // the person numbers during training
     CvFileStorage fileStorage;
     int i;
 
     // create a file-storage interface
     fileStorage = cvOpenFileStorage(
-            "data/facedata.xml", // filename
+    		Environment.getExternalStorageDirectory() + "/artag/data/facedata.xml", // filename
             null, // memstorage
             CV_STORAGE_READ, // flags
             null); // encoding
@@ -495,7 +623,7 @@ public class FaceRecognition {
       LOGGER.severe("No people found in the training database 'data/facedata.xml'.");
       return null;
     } else {
-      LOGGER.info(nPersons + " persons read from the training database");
+      Log.d(TAG, nPersons + " persons read from the training database");
     }
 
     // Load each person's name.
@@ -509,7 +637,7 @@ public class FaceRecognition {
               "");
       personNames.add(sPersonName);
     }
-    LOGGER.info("person names: " + personNames);
+    Log.d(TAG, "person names: " + personNames);
 
     // Load the data
     nEigens = cvReadIntByName(
@@ -559,7 +687,7 @@ public class FaceRecognition {
     // release the file-storage interface
     cvReleaseFileStorage(fileStorage);
 
-    LOGGER.info("Training data loaded (" + nTrainFaces + " training images of " + nPersons + " people)");
+    Log.d(TAG, "Training data loaded (" + nTrainFaces + " training images of " + nPersons + " people)");
     final StringBuilder stringBuilder = new StringBuilder();
     stringBuilder.append("People: ");
     if (nPersons > 0) {
@@ -568,7 +696,7 @@ public class FaceRecognition {
     for (i = 1; i < nPersons; i++) {
       stringBuilder.append(", <").append(personNames.get(i)).append(">");
     }
-    LOGGER.info(stringBuilder.toString());
+    Log.d(TAG, stringBuilder.toString());
 
     return pTrainPersonNumMat;
   }
@@ -576,12 +704,12 @@ public class FaceRecognition {
   /** Saves all the eigenvectors as images, so that they can be checked. */
   private void storeEigenfaceImages() {
     // Store the average image to a file
-    LOGGER.info("Saving the image of the average face as 'data/out_averageImage.bmp'");
+    Log.d(TAG, "Saving the image of the average face as 'data/out_averageImage.bmp'");
     cvSaveImage("data/out_averageImage.bmp", pAvgTrainImg);
 
     // Create a large image made of many eigenface images.
     // Must also convert each eigenface image to a normal 8-bit UCHAR image instead of a 32-bit float image.
-    LOGGER.info("Saving the " + nEigens + " eigenvector images as 'data/out_eigenfaces.bmp'");
+    Log.d(TAG, "Saving the " + nEigens + " eigenvector images as 'data/out_eigenfaces.bmp'");
 
     if (nEigens > 0) {
       // Put all the eigenfaces next to each other.
@@ -613,7 +741,7 @@ public class FaceRecognition {
         cvReleaseImage(byteImg);
       }
       cvSaveImage(
-              "data/out_eigenfaces.bmp", // filename
+    		  Environment.getExternalStorageDirectory() + "/artag/data/out_eigenfaces.bmp", // filename
               bigImg); // image
       cvReleaseImage(bigImg);
     }
@@ -663,10 +791,10 @@ public class FaceRecognition {
     int iTrain = 0;
     int iNearest = 0;
 
-    LOGGER.info("................");
-    LOGGER.info("find nearest neighbor from " + nTrainFaces + " training faces");
+    Log.d(TAG, "................");
+    Log.d(TAG, "find nearest neighbor from " + nTrainFaces + " training faces");
     for (iTrain = 0; iTrain < nTrainFaces; iTrain++) {
-      //LOGGER.info("considering training face " + (iTrain + 1));
+      //Log.d(TAG, "considering training face " + (iTrain + 1));
       double distSq = 0;
 
       for (i = 0; i < nEigens; i++) {
@@ -676,16 +804,16 @@ public class FaceRecognition {
         float d_i = projectedTestFace[i] - projectedTrainFaceDistance;
         distSq += d_i * d_i; // / eigenValMat.data_fl().get(i);  // Mahalanobis distance (might give better results than Eucalidean distance)
 //          if (iTrain < 5) {
-//            LOGGER.info("    ** projected training face " + (iTrain + 1) + " distance from eigenface " + (i + 1) + " is " + projectedTrainFaceDistance);
-//            LOGGER.info("    distance between them " + d_i);
-//            LOGGER.info("    distance squared " + distSq);
+//            Log.d(TAG, "    ** projected training face " + (iTrain + 1) + " distance from eigenface " + (i + 1) + " is " + projectedTrainFaceDistance);
+//            Log.d(TAG, "    distance between them " + d_i);
+//            Log.d(TAG, "    distance squared " + distSq);
 //          }
       }
 
       if (distSq < leastDistSq) {
         leastDistSq = distSq;
         iNearest = iTrain;
-        LOGGER.info("  training face " + (iTrain + 1) + " is the new best match, least squared distance: " + leastDistSq);
+        Log.d(TAG, "  training face " + (iTrain + 1) + " is the new best match, least squared distance: " + leastDistSq);
       }
     }
 
@@ -695,7 +823,7 @@ public class FaceRecognition {
     float pConfidence = (float) (1.0f - Math.sqrt(leastDistSq / (float) (nTrainFaces * nEigens)) / 255.0f);
     pConfidencePointer.put(pConfidence);
 
-    LOGGER.info("training face " + (iNearest + 1) + " is the final best match, confidence " + pConfidence);
+    Log.d(TAG, "training face " + (iNearest + 1) + " is the final best match, confidence " + pConfidence);
     return iNearest;
   }
 

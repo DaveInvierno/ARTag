@@ -5,5 +5,15 @@
     <string name="action_settings">Settings</string>
     <string name="hello_world">Hello world!</string>
     <string name="play_txt">Play</string>
+    
+    <string name="game_name">Game Name</string>
+    <string name="game_name_hint">MyGame</string>
+    <string name="create_txt">CREATE</string>
+    <string name="create_game_txt">CREATE GAME</string>
+    
+    <string name="ip_address">IP Address</string>
+    <string name="ip_hint">192.168.0.1</string>
+    <string name="join_txt">JOIN</string>
+    <string name="join_game_txt">JOIN GAME</string>
 
 </resources>

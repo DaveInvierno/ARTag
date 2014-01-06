@@ -7,15 +7,16 @@ import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.Size;
+import android.os.Build;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
-class Preview extends SurfaceView implements SurfaceHolder.Callback {
+public class Preview extends SurfaceView implements SurfaceHolder.Callback {
     SurfaceHolder mHolder;
     Camera mCamera;
     Camera.PreviewCallback previewCallback;
 
-    Preview(Context context, Camera.PreviewCallback previewCallback) {
+    public Preview(Context context, Camera.PreviewCallback previewCallback) {
         super(context);
         this.previewCallback = previewCallback;
 
@@ -29,7 +30,12 @@ class Preview extends SurfaceView implements SurfaceHolder.Callback {
     public void surfaceCreated(SurfaceHolder holder) {
         // The Surface has been created, acquire the camera and tell it where
         // to draw.
-        mCamera = Camera.open();
+    	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
+			mCamera = Camera.open(0);
+		} else {
+			mCamera = Camera.open();
+		}
+    	
         try {
         	mCamera.setPreviewDisplay(holder);
         	
