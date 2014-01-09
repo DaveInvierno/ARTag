@@ -23,7 +23,7 @@ public class AudioPlayer {
 	public void play(Context c) {
 		stop();
 		
-		mPlayer = MediaPlayer.create(c, R.raw.gunshot);
+		mPlayer = MediaPlayer.create(c, R.raw.gun_9mm_glock17_firing);
 		
 		mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
 			

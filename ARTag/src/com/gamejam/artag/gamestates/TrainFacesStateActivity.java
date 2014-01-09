@@ -1,9 +1,12 @@
 package com.gamejam.artag.gamestates;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +32,10 @@ import android.widget.Button;
 
 import com.gamejam.artag.R;
 import com.gamejam.artag.imageproc.FaceRecognition;
+import com.gamejam.artag.model.Player;
+import com.gamejam.artag.model.PlayerList;
+import com.gamejam.artag.net.Client;
+import com.gamejam.artag.net.MultiThreadedServer;
 
 public class TrainFacesStateActivity extends Activity {
 	
@@ -43,7 +50,18 @@ public class TrainFacesStateActivity extends Activity {
 	private SurfaceView mSurfaceView;
 	private View mProgressContainer;
 	
+	private PlayerList mPlayerList;
+	private Player mCurrentPlayer;
+	private ArrayList<Player> mPlayers;
+	private int mPlayerIndex;
+	private int mPlayerFaceCount;
+	
 	private FaceRecognition mFaceRecognition;
+	
+	private Boolean mIsServer;
+	
+	private MultiThreadedServer server;
+	private Client client;
 	
 	private Camera.PreviewCallback mPreviewCallback = new Camera.PreviewCallback() {
 		
@@ -69,6 +87,16 @@ public class TrainFacesStateActivity extends Activity {
         
         super.onCreate(savedInstanceState);
 
+        Intent data = getIntent();
+        mIsServer = data.getBooleanExtra(GameRoomStateActvity.IS_SERVER_EXTRA, false);
+        mPlayerName = data.getStringExtra(GameRoomStateActvity.PLAYER_NAME_EXTRA);
+        
+        if(mIsServer){
+        	server = MultiThreadedServer.getInstance();
+        } else {
+        	client = Client.getInstance();
+        }
+        
         setContentView(R.layout.activity_train_faces_state);
         
         mFaceRecognition = FaceRecognition.getInstance();
@@ -82,23 +110,50 @@ public class TrainFacesStateActivity extends Activity {
 			@Override
 			public void onClick(View v) {
 				//getActivity().finish();
-				if (mCamera != null) {
-					mPlayerName = "1 Dave ";
-					isTakePictureBtnClicked = true;
+				if (mCamera == null) { return; }
+
+				mPlayerName = (mPlayerIndex + 1) + " " + mCurrentPlayer.getName() + " ";
+				isTakePictureBtnClicked = true;
+					
+				mPlayerFaceCount++;
+				if(mPlayerFaceCount >= 10) {
+					mTrainPictureButton.setEnabled(true);
 				}
 			}
 		});
 		
 		mTrainPictureButton = (Button) findViewById(R.id.camera_trainPictureButton);
+		mTrainPictureButton.setEnabled(false);
 		mTrainPictureButton.setOnClickListener(new View.OnClickListener() {
 			
 			@Override
 			public void onClick(View v) {
-				mPlayerName = "2 Ernest ";
-				isTakePictureBtnClicked = true;
+				if(mTrainPictureButton.getText() == "Start") {
+					onBackPressed();
+				}
 				
+				if(mPlayerIndex + 1 == mPlayers.size()) {
+					mTrainPictureButton.setText("Start");
+				}
+				
+				mTrainPictureButton.setEnabled(false);
+				mPlayerIndex++;
+				
+				if(mPlayerIndex < mPlayers.size()) {
+					mCurrentPlayer = mPlayers.get(mPlayerIndex);
+				}
 			}
 		});
+		
+		mPlayerList = PlayerList.getInstance();
+		mPlayers = mPlayerList.getPlayers();
+		mPlayerIndex = 0;
+		mPlayerFaceCount = 0;
+		mCurrentPlayer = mPlayers.get(mPlayerIndex);
+		
+		if(mPlayerIndex + 1 == mPlayers.size()) {
+			mTrainPictureButton.setText("Start");
+		}
 		
 		mSurfaceView = (SurfaceView)findViewById(R.id.crime_camera_surfaceView);
 		SurfaceHolder holder = mSurfaceView.getHolder();
@@ -291,6 +346,7 @@ public class TrainFacesStateActivity extends Activity {
 			os = new FileOutputStream(file, true);
 			//os = openFileOutput(filename, Context.MODE_PRIVATE);
 			os.write(mTrainedFacesTxt.getBytes());
+			
 		} catch (Exception e) {
 			Log.e(TAG, "Error writing to file " + filename, e);
 		} finally {
@@ -305,11 +361,25 @@ public class TrainFacesStateActivity extends Activity {
 		
 		FaceRecognition fr = FaceRecognition.getInstance();
 		fr.learn("trainedfaces.txt");
-		
+		sendTrainingData(file);
 		Intent i = new Intent(TrainFacesStateActivity.this, InGameStateActivity.class);
 		startActivity(i);
 		
 		super.onBackPressed();
+	}
+	
+	private void sendTrainingData(File myFile) {
+		if(mIsServer){
+			//File myFile = new File(path);
+			try {
+				server.broadcastMessage(myFile);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			
+		}
 	}
 }
 

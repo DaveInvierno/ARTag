@@ -18,12 +18,12 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Paint.Style;
 import android.hardware.Camera;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnTouchListener;
-import android.widget.Toast;
 
 import com.gamejam.artag.R;
 import com.gamejam.artag.audio.AudioPlayer;
@@ -171,6 +171,16 @@ public class FaceView extends View implements Camera.PreviewCallback, OnTouchLis
         } else {
         	canvas.drawBitmap(mGun, (canvas.getWidth() / 2) + mGun.getWidth(), canvas.getHeight() - mGun.getHeight(), paint);
         }
+        
+        paint.setColor(Color.GREEN);
+        paint.setTextSize(36);
+        canvas.drawText("HP", 10, 40, paint);
+        paint.setStyle(Style.FILL);
+        canvas.drawRect(30, 10, 250, 50, paint);
+        paint.setColor(Color.GRAY);
+        paint.setAlpha(128);
+        canvas.drawRect(28, 8, 502, 52, paint);
+        
     }
 	
 	public void cleanUp() {

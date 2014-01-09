@@ -6,6 +6,9 @@
     <string name="hello_world">Hello world!</string>
     <string name="play_txt">Play</string>
     
+    <string name="player_name">Player Name</string>
+    <string name="player_name_hint">MyName</string>
+    
     <string name="game_name">Game Name</string>
     <string name="game_name_hint">MyGame</string>
     <string name="create_txt">CREATE</string>

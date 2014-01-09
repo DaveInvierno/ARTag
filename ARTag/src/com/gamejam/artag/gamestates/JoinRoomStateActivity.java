@@ -20,8 +20,9 @@ public class JoinRoomStateActivity extends Activity {
 
 	private static final String IPV4_REGEX = "^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$";
 	
-	private EditText mIpAddressTxt;
 	private Button mJoinBtn;
+	private EditText mIpAddressTxt;
+	private EditText mPlayerName;
 	
 	protected void onCreate(Bundle savedInstanceState) {
 		// Hide the window title.
@@ -33,14 +34,23 @@ public class JoinRoomStateActivity extends Activity {
 		setContentView(R.layout.activity_join_room_state);
 		
 		mIpAddressTxt = (EditText) findViewById(R.id.room_ip_txt);
+		mPlayerName = (EditText) findViewById(R.id.player_name_in_join_txt);
 		
 		mJoinBtn = (Button) findViewById(R.id.join_game_btn);
 		mJoinBtn.setOnClickListener(new View.OnClickListener() {
 			
 			@Override
-			public void onClick(View arg0) {
+			public void onClick(View v) {
+				if(mPlayerName.getText().toString().length() == 0) {
+					Toast.makeText(getApplicationContext(), "Player Name Cannot Be Empty", Toast.LENGTH_LONG).show();
+					return;
+				} 
+				
 				if(isValidInet4Address(mIpAddressTxt.getText().toString())) {
 					Intent i = new Intent(JoinRoomStateActivity.this, GameRoomStateActvity.class);
+					i.putExtra(GameRoomStateActvity.IS_SERVER_EXTRA, false);
+					i.putExtra(GameRoomStateActvity.IP_ADDRESS_EXTRA, mIpAddressTxt.getText().toString());
+					i.putExtra(GameRoomStateActvity.PLAYER_NAME_EXTRA, mPlayerName.getText().toString());
 					startActivity(i);
 				} else {
 					Toast.makeText(getApplicationContext(), "Invalid IP Address", Toast.LENGTH_LONG).show();

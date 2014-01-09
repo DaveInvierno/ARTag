@@ -11,6 +11,28 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@android:color/white"
+        android:text="@string/player_name" />
+
+    <EditText
+        android:id="@+id/player_name_in_create_txt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:layout_marginLeft="48dp"
+        android:layout_marginRight="48dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/trasparent_bg"
+        android:ems="10"
+        android:hint="@string/player_name_hint"
+        android:textColor="@android:color/white" >
+
+        <requestFocus />
+    </EditText>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
         android:text="@string/game_name" />
 
     <EditText
@@ -21,12 +43,10 @@
         android:layout_marginLeft="48dp"
         android:layout_marginRight="48dp"
         android:layout_marginTop="8dp"
+        android:background="@drawable/trasparent_bg"
         android:ems="10"
         android:hint="@string/game_name_hint"
-        android:textColor="@android:color/white" >
-
-        <requestFocus />
-    </EditText>
+        android:textColor="@android:color/white" />
 
     <Button
         android:id="@+id/create_game_btn"
